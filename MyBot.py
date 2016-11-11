@@ -94,7 +94,7 @@ while True:
             mapDict[(x, y)] = (site.owner, site.strength, site.production)
     myPieces = {(x, y):(o, s, p) for ((x, y),(o, s, p)) in mapDict.items() if o == myID}
     opponentPieces = {(x, y):(o, s, p) for ((x, y),(o, s, p)) in mapDict.items() if o != myID and o != 0}
-
+    unownedPieces = {(x, y) for ((x, y),(o, s, p)) in mapDict.items() if o == 0}
     ownedMines = [(x, y) for ((x, y),(o, s, p)) in myPieces.items() if (x, y) in highestProductionCoords]
     unownedMines = set(highestProductionCoords) - set(ownedMines)
 
@@ -115,8 +115,7 @@ while True:
 
         # Make sure we have strength on the block
         if currentSite.strength < currentSite.production * productionScale:
-            moves.append(Move(Location(x, y), STILL))
-            # movedPiece = True
+            # moves.append(Move(Location(x, y), STILL))
             continue
 
         if not fastMode:
@@ -136,18 +135,15 @@ while True:
                 minStrengthSite = min(unownedSites, key=itemgetter(0))
                 lowestStrength = minStrengthSite[0]
                 if currentSite.strength < lowestStrength:
-                    moves.append(Move(Location(x, y), STILL))
-                    # movedPiece = True
+                    # moves.append(Move(Location(x, y), STILL))
                     continue
                 else:
                     # Move to takeover lowest strength local site
                     moves.append(Move(Location(x, y), minStrengthSite[1]))
-                    # movedPiece = True
                     continue
 
             # If there are no unowned territories, migrate towards high Production, then the nearest enemy
             if not movedPiece:
-                
                 if unownedMines:
                     closestMine = getClosestMine(x, y, unownedMines)
                     mineAngle = gameMap.getAngle(Location(x, y), Location(closestMine[0], closestMine[1]))
@@ -188,32 +184,37 @@ while True:
                     # If we're at an off angle, check two neighboring sites to lose the least amount of strength
                     if not movedPiece and gameMap.getSite(Location(x, y), enemyDirection[0]).owner != myID:
                         moves.append(Move(Location(x, y), enemyDirection[0]))
-                        # movedPiece = True
                         continue
                     if not movedPiece and gameMap.getSite(Location(x, y), enemyDirection[1]).owner != myID:
                         moves.append(Move(Location(x, y), enemyDirection[1]))
-                        # movedPiece = True
                         continue
                     else:
                         moves.append(Move(Location(x, y), enemyDirection[randrange(0, 2)]))
-                        # movedPiece = True
                         continue
                 else:
                     moves.append(Move(Location(x, y), enemyDirection[0]))
-                    # movedPiece = True
                     continue
 
         # If somehow we didn't account for an instruction, move the piece away from groundZero
         if not movedPiece:
-            homeAngle = gameMap.getAngle(Location(x, y), Location(groundZero[0], groundZero[1]))
-            homeDirection = getDirection(homeAngle, 1)
-            if len(homeDirection) > 1:
-                # If we're at an off angle, check two neighboring sites to lose the least amount of strength
-                if gameMap.getSite(Location(x, y), homeDirection[0]).strength + currentSite.strength > 255:
-                    moves.append(Move(Location(x, y), homeDirection[1]))
+            if unownedPieces:
+                closestEmptyPiece = getClosestMine(x, y, unownedPieces)
+                emptyAngle = gameMap.getAngle(Location(x, y), Location(closestEmptyPiece[0], closestEmptyPiece[1]))
+                emptyDirection = getDirection(emptyAngle, 0)
+                
+                if len(emptyDirection) > 1:
+                    # If we're at an off angle, check two neighboring sites to lose the least amount of strength
+                    if not movedPiece and gameMap.getSite(Location(x, y), emptyDirection[0]).owner != myID:
+                        moves.append(Move(Location(x, y), emptyDirection[0]))
+                        continue
+                    if not movedPiece and gameMap.getSite(Location(x, y), emptyDirection[1]).owner != myID:
+                        moves.append(Move(Location(x, y), emptyDirection[1]))
+                        continue
+                    else:
+                        moves.append(Move(Location(x, y), emptyDirection[randrange(0, 2)]))
+                        continue
                 else:
-                    moves.append(Move(Location(x, y), homeDirection[0]))
-            else:
-                moves.append(Move(Location(x, y), homeDirection[0]))
-
+                    moves.append(Move(Location(x, y), emptyDirection[0]))
+                    continue
+                    
     sendFrame(moves)
