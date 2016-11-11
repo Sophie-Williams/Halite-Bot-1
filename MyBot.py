@@ -5,9 +5,10 @@ from operator import *
 from random import *
 
 myID, gameMap = getInit()
-# logging.basicConfig(filename='last.log', level=logging.INFO, filemode="w")
+logging.basicConfig(filename='last.log', level=logging.INFO, filemode="w")
 
 DIRECTIONS = [NORTH, EAST, SOUTH, WEST]
+
 def getClosestMine(a, b, mines):
     highProducationDistances = {}
     for (x, y) in mines:
@@ -60,14 +61,41 @@ def getDirection(radians, away):
             return [NORTH, EAST]
 
 mapDict = {}
+height = gameMap.height
+width = gameMap.width
+
 for y in range(gameMap.height):
     for x in range(gameMap.width):
         site = gameMap.getSite(Location(x, y))
         mapDict[(x, y)] = (site.owner, site.strength, site.production)
 groundZero = {(x, y) for ((x, y),(o, s, p)) in mapDict.items() if o == myID}
 groundZero = list(groundZero)[0]
+logging.info("groundzero: {}".format(groundZero))
 productionScale = 3
 fastMode = False
+
+# Define TS Logo Coordinates
+TSLOGOOFFSETS = {(0, 0), (0, 1), (1, 2), (2, 3), (3, 3), (4, 2), (5, 1), (5, 0), (4, -1), (3, -2),
+                 (2, -2), (1, -1), (4, -2), (5, -2), (6, -2), (-3, 0), (-2, -1), (-2, -2), (-3, -3),
+                 (-4, -3), (-5, -2), (-4, 1), (-5, 2), (-5, 3), (-4, 3), (-3, 3), (-2, 3)}
+
+TSLOGOCOORDS = []
+for (x, y) in TSLOGOOFFSETS:
+    newcoord = tuple(map(add, (groundZero[0], groundZero[1]), (x, y)))
+    logging.info("Adding {},{} and {},{}".format(groundZero[0], groundZero[1], x, y))
+    if newcoord[0] >= width:
+        newcoord[0] = width - newcoord[0]
+    if newcoord[0] < 0:
+        newcoord[0] = width + newcoord[0]
+    if newcoord[1] >= height:
+        newcoord[1] = height - newcoord[1]
+    if newcoord[1] < 0:
+        newcoord[1] = height + newcoord[1]
+
+    logging.info("Result: {}".format(newcoord))
+    TSLOGOCOORDS.append(newcoord)
+
+logging.info("Logo Cords: {}".format(TSLOGOCOORDS))
 
 # Find closest high Production zone
 unownedTerritory = {(x, y): p for ((x, y),(o, s, p)) in mapDict.items() if o == 0}
@@ -99,8 +127,11 @@ while True:
     unownedMines = set(highestProductionCoords) - set(ownedMines)
 
     territorySize = len(myPieces)
+    logging.info("territory: {}".format(territorySize))
     opponentTerritorySize = len(opponentPieces)
-    if territorySize > 550:
+
+    fastMode = False
+    if territorySize > 350:
         fastMode = True
         productionScale = 5
 
@@ -194,6 +225,11 @@ while True:
                 else:
                     moves.append(Move(Location(x, y), enemyDirection[0]))
                     continue
+
+        if (x, y) in TSLOGOCOORDS:
+            logging.info("Fast mode on, crafting logo...")
+            moves.append(Move(Location(x, y) , STILL))
+            continue
 
         # If somehow we didn't account for an instruction, move the piece away from groundZero
         if not movedPiece:
