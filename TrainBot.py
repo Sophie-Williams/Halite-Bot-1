@@ -9,15 +9,8 @@ from os import listdir, remove
 from os.path import join, isfile
 import json
 
-def loadGame(filename):
-    # def stringUntil(gameFile, endChar):
-    #     returnString = ""
-    #     byte = gameFile.read(1)
-    #     while byte != endChar.encode("utf-8"):
-    #         returnString += byte.decode("utf-8")
-    #         byte = gameFile.read(1)
-    #     return returnString
 
+def loadGame(filename):
     with open(filename) as data_file:
         gameData = json.load(data_file)
 
@@ -31,57 +24,24 @@ def loadGame(filename):
     numPlayers = gameData['num_players']
 
     try:
-        # stringUntil(gameFile, "\n")
 
-        # Get metadata
-        # metadata = stringUntil(gameFile, "\n")
-
-        # components = metadata.split(" ")
-        # numFrames = len(gameData['frames'])
-
-        # Get matt's playerID
         if gameData['player_names'].index('djma v3'):
                 botID = gameData['player_names'].index(botName) + 1
-                print("Found player ID: " + botID + " (" + botName + ")")
+                print("Found player ID: {} ({})".format(botID, botName))
         else:
             print("Unable to find player")
 
-        # Get production
-        # productions = gameData['productions']
+    finally:
 
-        # # Get the frames and moves
-        # for frameIndex in range(numFrames-1):
-        #     # Frames
-        #     frames.append(GameMap(width=width, height=height, numberOfPlayers=numPlayers))
-        #     x = 0
-        #     y = 0
-        #     while y < height:
-        #         numTiles = int.from_bytes(gameFile.read(1), byteorder='big')
-        #         ownerID = int.from_bytes(gameFile.read(1), byteorder='big')
-        #
-        #         strengths = []
-        #         for a in range(numTiles):
-        #             frames[-1].contents[y][x] = Site(ownerID, int.from_bytes(gameFile.read(1), byteorder='big'), productions[y*width + x])
-        #
-        #             x += 1
-        #             if x == width:
-        #                 x = 0
-        #                 y += 1
-        #                 if y == height:
-        #                     break
-        #     # Moves
-        #     moves.append({(index % width, math.floor(index/width)):int.from_bytes(gameFile.read(1), byteorder='big') for index in range(width*height)})
-
-    return botID, frames, moves, productions, width, height, numPlayers
+        return botID, frames, moves, productions, width, height, numPlayers
 
 def getNNData():
     inputs = []
     correctOutputs = []
-
-    gamePath = "replays"
+    gamePath = "replaybank"
 
     for filename in [f for f in listdir(gamePath) if isfile(join(gamePath, f))]:
-        print("Loading " + filename)
+        print("Loading {}".format(filename))
 
         botID, frames, moves, productions, width, height, numPlayers = loadGame(join(gamePath, filename))
         maxProduction = 0
@@ -92,10 +52,10 @@ def getNNData():
                 if prod > maxProduction:
                     maxProduction = prod
 
-        print("Game max production: " + maxProduction)
+        print("Game max production: {}".format(maxProduction))
         print("Processing frames...")
         for turnIndex in range(len(moves)):
-            print(turnIndex + " ", end="")
+            print("{} ".format(turnIndex), end="")
             gameMap = GameMap(width, height, numPlayers)
             gameMap.contents = frames[turnIndex]
 
@@ -122,8 +82,9 @@ def getNNData():
                         for site in box:
                             nnInput += [1 if site[0] == botID else -1, float(site[1] / 255), float(site[2] / maxProduction)]
                         inputs.append(nnInput)
-                        correctOutputs.append([1 if a == moves[turnIndex][(x, y)] else 0 for a in range(5)])
+                        correctOutputs.append([1 if a == moves[turnIndex][y][x] else 0 for a in range(5)])
     return inputs, correctOutputs
+
 
 def trainModel():
     inputs, correctOutputs = getNNData()
@@ -137,8 +98,10 @@ def trainModel():
     testOutputs = correctOutputs[len(correctOutputs)//2:]
 
     model = Sequential()
-    model.add(Dense(24, input_shape=(24, )))
-    model.add(Activation('tanh'))
+    model.add(Dense(124, init='lecun_uniform', input_shape=(24, )))
+    model.add(Activation('relu'))
+    model.add(Dense(150, init='lecun_uniform'))
+    model.add(Activation('relu'))
     model.add(Dense(24))
     model.add(Activation('tanh'))
     model.add(Dense(5))
@@ -148,9 +111,9 @@ def trainModel():
 
     model.compile(loss='mean_squared_error', optimizer=SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True))
 
-    model.fit(trainingInputs, trainingOutputs, validation_data=(testInputs, testOutputs))
+    model.fit(trainingInputs, trainingOutputs, validation_data=(testInputs, testOutputs), nb_epoch=1000)
     score = model.evaluate(testInputs, testOutputs, verbose=0)
-    print(score)
+    print("Score: {}".format(score))
 
     json_string = model.to_json()
     open('my_model_architecture.json', 'w').write(json_string)

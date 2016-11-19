@@ -2,10 +2,12 @@ from hlt import *
 from networking import *
 
 from keras.models import Sequential, model_from_json
-from keras.layers import Dense, Activation
 from keras.optimizers import SGD, Adam, RMSprop
 
 import numpy as np
+import logging
+
+logging.basicConfig(filename='last.log', level=logging.INFO, filemode="w")
 
 myID, gameMap = getInit()
 
@@ -15,6 +17,8 @@ model.compile(loss='mean_squared_error', optimizer=SGD(lr=0.1, decay=1e-6, momen
 
 
 maxProduction = 0
+frame = 0
+
 for y in range(gameMap.height):
     for x in range(gameMap.width):
         prod = gameMap.getSite(Location(x, y)).production
@@ -37,6 +41,7 @@ while True:
                 nnInput = np.asarray(nnInput).reshape((1, 24))
 
                 output = model.predict(nnInput)[0]
+                logging.info("Output: {}".format(output))
 
                 biggest = -222
                 direction = STILL
@@ -44,5 +49,10 @@ while True:
                     if output[d] > biggest:
                         biggest = output[d]
                         direction = d
-                moves.append(Move(loc, direction))
+
+                if frame < 10 and direction == 0:
+                    moves.append(Move(loc, random.randrange(4)))
+                else:
+                    moves.append(Move(loc, direction))
+    frame = frame + 1
     sendFrame(moves)
